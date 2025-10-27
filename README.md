@@ -215,10 +215,16 @@ No modules.
 | <a name="input_assign_public_ip"></a> [assign\_public\_ip](#input\_assign\_public\_ip) | Assign public IP to ECS tasks (Fargate only) | `bool` | `false` | no |
 | <a name="input_ecs_cluster_name"></a> [ecs\_cluster\_name](#input\_ecs\_cluster\_name) | Name of the ECS cluster | `string` | n/a | yes |
 | <a name="input_ecs_launch_type"></a> [ecs\_launch\_type](#input\_ecs\_launch\_type) | Launch type for the ECS task (FARGATE or EC2) | `string` | `"FARGATE"` | no |
+| <a name="input_enable_ecs_managed_tags"></a> [enable\_ecs\_managed\_tags](#input\_enable\_ecs\_managed\_tags) | Enable ECS managed tags for the tasks | `bool` | `true` | no |
 | <a name="input_event_input"></a> [event\_input](#input\_event\_input) | JSON input to pass to the scheduled task | `string` | `""` | no |
+| <a name="input_group"></a> [group](#input\_group) | Group name for the scheduled tasks | `string` | `""` | no |
 | <a name="input_initial_role"></a> [initial\_role](#input\_initial\_role) | ARN of the IAM role to use for both task role and execution role | `string` | `""` | no |
 | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Number of days to retain logs | `number` | `7` | no |
-| <a name="input_retry_policy"></a> [retry\_policy](#input\_retry\_policy) | Retry policy configuration for the EventBridge target | <pre>object({<br>    maximum_retry_attempts       = optional(number, 2)<br>    maximum_event_age_in_seconds = optional(number, 3600)<br>  })</pre> | `{}` | no |
+| <a name="input_placement_constraints"></a> [placement\_constraints](#input\_placement\_constraints) | Placement constraints for EC2 launch type | <pre>list(object({<br/>    type       = string<br/>    expression = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_platform_version"></a> [platform\_version](#input\_platform\_version) | Platform version for Fargate tasks | `string` | `"LATEST"` | no |
+| <a name="input_propagate_tags"></a> [propagate\_tags](#input\_propagate\_tags) | Propagate tags from the task definition or the service to the tasks | `string` | `"TASK_DEFINITION"` | no |
+| <a name="input_retry_policy"></a> [retry\_policy](#input\_retry\_policy) | Retry policy configuration for the EventBridge target | <pre>object({<br/>    maximum_retry_attempts       = optional(number, 2)<br/>    maximum_event_age_in_seconds = optional(number, 3600)<br/>  })</pre> | `{}` | no |
+| <a name="input_role_arn"></a> [role\_arn](#input\_role\_arn) | ARN of the IAM role that EventBridge assumes to run the task | `string` | `""` | no |
 | <a name="input_schedule_expression"></a> [schedule\_expression](#input\_schedule\_expression) | Schedule expression for the task (cron or rate) | `string` | n/a | yes |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Security group IDs for the ECS tasks | `list(string)` | n/a | yes |
 | <a name="input_state"></a> [state](#input\_state) | State of the EventBridge rule (ENABLED or DISABLED) | `string` | `"ENABLED"` | no |
@@ -232,9 +238,14 @@ No modules.
 
 | Name | Description |
 |------|-------------|
+| <a name="output_cloudwatch_log_group_arn"></a> [cloudwatch\_log\_group\_arn](#output\_cloudwatch\_log\_group\_arn) | ARN of the CloudWatch log group |
 | <a name="output_cloudwatch_log_group_name"></a> [cloudwatch\_log\_group\_name](#output\_cloudwatch\_log\_group\_name) | Name of the CloudWatch log group |
 | <a name="output_event_rule_arn"></a> [event\_rule\_arn](#output\_event\_rule\_arn) | ARN of the EventBridge rule |
 | <a name="output_event_rule_name"></a> [event\_rule\_name](#output\_event\_rule\_name) | Name of the EventBridge rule |
+| <a name="output_event_target_id"></a> [event\_target\_id](#output\_event\_target\_id) | ID of the EventBridge target |
+| <a name="output_eventbridge_role_arn"></a> [eventbridge\_role\_arn](#output\_eventbridge\_role\_arn) | ARN of the EventBridge IAM role (if created) |
+| <a name="output_schedule_expression"></a> [schedule\_expression](#output\_schedule\_expression) | Schedule expression for the task |
 | <a name="output_task_definition_arn"></a> [task\_definition\_arn](#output\_task\_definition\_arn) | ARN of the ECS task definition |
 | <a name="output_task_definition_family"></a> [task\_definition\_family](#output\_task\_definition\_family) | Family of the ECS task definition |
+| <a name="output_task_details"></a> [task\_details](#output\_task\_details) | Details about the scheduled task configuration |
 <!-- END_TF_DOCS -->
