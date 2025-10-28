@@ -2,27 +2,21 @@
 
 # AWS ECS Scheduled Task Terraform Module
 
-This Terraform module deploys ECS scheduled tasks on AWS using EventBridge (CloudWatch Events) with support for Fargate and EC2 launch types.
+This Terraform module deploys ECS scheduled tasks on AWS using **EventBridge Rules** (formerly CloudWatch Events) with support for Fargate and EC2 launch types.
 
 ## Features
 
-- Creates ECS scheduled tasks with EventBridge/CloudWatch Events triggers
-- Support for both cron and rate expressions
-- Configurable retry policies with exponential backoff
-- Network configuration for Fargate and EC2 launch types
-- CloudWatch logging integration
-- Support for multiple task instances per schedule
-- Custom event input (JSON) support
-- Tagging support for all resources
-- Task definition management with ignore changes for external deployments
-
-## Resources Created
-
-- ECS Task Definition
-- EventBridge Rule (CloudWatch Events)
-- EventBridge Target
-- CloudWatch Log Group
-- IAM Role for EventBridge execution (if not provided)
+- ✅ Creates ECS scheduled tasks with **EventBridge Rules**
+- ✅ Support for both cron and rate expressions
+- ✅ **Fargate Spot support** for cost savings (up to 70% cheaper)
+- ✅ **Flexible capacity provider strategies** (Spot, Regular, or Mixed)
+- ✅ Configurable retry policies
+- ✅ Network configuration for Fargate and EC2 launch types
+- ✅ CloudWatch logging integration
+- ✅ Support for multiple task instances per schedule
+- ✅ Custom event input (JSON) support
+- ✅ Tagging support for all resources
+- ✅ Task definition management with ignore changes for external deployments
 
 ## Usage
 
@@ -32,9 +26,10 @@ This Terraform module deploys ECS scheduled tasks on AWS using EventBridge (Clou
 module "ecs_scheduled_task" {
   source = "delivops/ecs-scheduled-task/aws"
   
-  ecs_cluster_name = "my-cluster"
-  task_name        = "my-scheduled-task"
+  ecs_cluster_name    = "my-cluster"
+  name                = "data-sync"
   schedule_expression = "cron(0 12 * * ? *)" # Daily at noon UTC
+  description         = "Syncs data daily at noon"
   
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
@@ -42,113 +37,132 @@ module "ecs_scheduled_task" {
 }
 ```
 
-### Example with Rate Expression
+### Example with Multiple Tasks in Same Cluster
 
 ```hcl
 module "hourly_task" {
   source = "delivops/ecs-scheduled-task/aws"
   
   ecs_cluster_name    = "my-cluster"
-  task_name          = "hourly-processor"
+  name                = "hourly-processor"
   schedule_expression = "rate(1 hour)"
   
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
   security_group_ids = var.security_group_ids
   
-  task_count = 2  # Run 2 instances of the task
+  task_count            = 2     # Run 2 instances of the task
+}
+
+module "backup_task" {
+  source = "delivops/ecs-scheduled-task/aws"
+  
+  ecs_cluster_name    = "my-cluster"
+  name                = "backup-job"
+  schedule_expression = "cron(0 3 * * ? *)"
+  
+  vpc_id             = var.vpc_id
+  subnet_ids         = var.subnet_ids
+  security_group_ids = var.security_group_ids
+  
 }
 ```
 
-### Example with Retry Policy
+**Result in AWS Console:**
+- Schedule Group: `my-cluster`
+  - Schedule: `hourly-processor`
+  - Schedule: `backup-job`
+
+
+### Example with Fargate Spot (Cost Savings)
 
 ```hcl
-module "data_processor" {
+module "fargate_spot_task" {
+  source = "delivops/ecs-scheduled-task/aws"
+  
+  ecs_cluster_name    = "my-cluster"
+  name                = "backup-job"
+  schedule_expression = "rate(1 hour)"
+  description         = "Hourly backup job on Spot"
+  
+  vpc_id             = var.vpc_id
+  subnet_ids         = var.subnet_ids
+  security_group_ids = var.security_group_ids
+  
+  # Use 100% Fargate Spot for maximum cost savings (up to 70% cheaper)
+  capacity_provider_strategy = [
+    {
+      capacity_provider = "FARGATE_SPOT"
+      weight            = 1
+      base              = 0
+    }
+  ]
+  
+  # Enhanced retry policy recommended for Spot (handles interruptions)
+  retry_policy = {
+    maximum_retry_attempts = 3
+  }
+}
+```
+
+### Example with Mixed Capacity (Spot + Regular Fargate)
+
+```hcl
+module "mixed_capacity_task" {
   source = "delivops/ecs-scheduled-task/aws"
   
   ecs_cluster_name    = "production"
-  task_name          = "data-processor"
-  schedule_expression = "cron(0 2 * * ? *)" # Daily at 2 AM UTC
+  name                = "balanced-task"
+  schedule_expression = "cron(0 */6 * * ? *)" # Every 6 hours
+  description         = "Balanced task with mixed capacity"
   
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
   security_group_ids = var.security_group_ids
   
-  retry_policy = {
-    maximum_retry_attempts       = 3
-    maximum_event_age_in_seconds = 3600
-  }
+  # Mixed strategy: 70% Spot (cost savings) + 30% Regular (reliability)
+  capacity_provider_strategy = [
+    {
+      capacity_provider = "FARGATE_SPOT"
+      weight            = 70
+      base              = 0
+    },
+    {
+      capacity_provider = "FARGATE"
+      weight            = 30
+      base              = 0
+    }
+  ]
   
-  tags = {
-    Environment = "production"
-    Team        = "data"
-  }
+  task_count = 5  # 3-4 tasks on Spot, 1-2 on regular Fargate
 }
 ```
 
-### Example with Event Input
+## Fargate Spot vs Regular Fargate
 
-```hcl
-module "etl_task" {
-  source = "delivops/ecs-scheduled-task/aws"
-  
-  ecs_cluster_name    = "analytics"
-  task_name          = "etl-pipeline"
-  schedule_expression = "cron(0 6 * * MON-FRI *)" # Weekdays at 6 AM
-  
-  vpc_id             = var.vpc_id
-  subnet_ids         = var.subnet_ids
-  security_group_ids = var.security_group_ids
-  
-  event_input = jsonencode({
-    source = "s3",
-    bucket = "my-data-bucket",
-    prefix = "raw-data/"
-  })
-  
-  task_count = 1
-}
-```
+| Feature | Regular Fargate | Fargate Spot | Mixed Strategy |
+|---------|----------------|--------------|----------------|
+| **Cost** | Standard pricing | Up to 70% cheaper | 30-60% cheaper |
+| **Availability** | Guaranteed | Can be interrupted | Balanced |
+| **Best For** | Critical, time-sensitive tasks | Fault-tolerant, flexible workloads | Production with cost awareness |
+| **Interruption** | Never | 2-minute warning | Partial protection |
+| **Recommendation** | Payment processing, user-facing | Data sync, batch jobs, reports | General production workloads |
 
-### Example with Custom IAM Role
+### When to Use Fargate Spot
 
-```hcl
-module "secure_task" {
-  source = "delivops/ecs-scheduled-task/aws"
-  
-  ecs_cluster_name    = "secure-cluster"
-  task_name          = "secure-processor"
-  schedule_expression = "rate(30 minutes)"
-  
-  vpc_id             = var.vpc_id
-  subnet_ids         = var.subnet_ids
-  security_group_ids = var.security_group_ids
-  
-  initial_role = aws_iam_role.custom_task_role.arn
-  
-  assign_public_ip = false
-  
-  log_retention_days = 30
-}
-```
+**✅ Good use cases:**
+- Batch processing jobs
+- Data synchronization tasks
+- Report generation
+- ETL pipelines
+- Log processing
+- Non-time-critical workloads
 
-### Example with EC2 Launch Type
-
-```hcl
-module "ec2_scheduled_task" {
-  source = "delivops/ecs-scheduled-task/aws"
-  
-  ecs_cluster_name    = "ec2-cluster"
-  task_name          = "batch-job"
-  schedule_expression = "cron(0 0 * * SUN *)" # Weekly on Sunday
-  
-  vpc_id             = var.vpc_id
-  subnet_ids         = var.subnet_ids
-  security_group_ids = var.security_group_ids
-  
-  ecs_launch_type = "EC2"
-}
-```
+**❌ Avoid for:**
+- Real-time payment processing
+- User-facing critical operations
+- Tasks that cannot tolerate 2-minute interruptions
+- Stateful workloads without proper checkpointing
 
 ## Schedule Expression Examples
 
@@ -167,10 +181,11 @@ module "ec2_scheduled_task" {
 
 - The module creates an initial placeholder task definition that will be overridden
 - Task definition changes are ignored to support external deployments
-- EventBridge requires an IAM role with permissions to run ECS tasks
+- EventBridge Rules require an IAM role with permissions to run ECS tasks
 - For Fargate tasks, network mode is always "awsvpc"
-- Schedule expressions use UTC timezone
+- Schedule expressions use UTC timezone by default
 - CPU, memory, container image, and container name should be managed in your actual task definition, not in this module
+- **Event rule names must be unique per region**
 
 ## License
 

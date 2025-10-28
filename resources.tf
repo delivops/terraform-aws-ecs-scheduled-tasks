@@ -8,10 +8,46 @@ resource "aws_cloudwatch_log_group" "ecs_log_group" {
   tags = merge(
     {
       Name          = local.log_group_name
-      ScheduledTask = var.task_name
+      ScheduledTask = var.name
     },
     var.tags
   )
+}
+
+###############################################################################
+# ECS Task Execution Role (required for Fargate)
+###############################################################################
+resource "aws_iam_role" "task_execution_role" {
+  count = var.initial_role == "" ? 1 : 0
+  
+  name = "${var.ecs_cluster_name}-${var.name}-execution-role"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
+    }]
+  })
+  
+  tags = merge(
+    {
+      Name          = "${var.ecs_cluster_name}-${var.name}-execution-role"
+      ScheduledTask = var.name
+      Cluster       = var.ecs_cluster_name
+    },
+    var.tags
+  )
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution_policy" {
+  count = var.initial_role == "" ? 1 : 0
+  
+  role       = aws_iam_role.task_execution_role[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 ###############################################################################
@@ -19,19 +55,23 @@ resource "aws_cloudwatch_log_group" "ecs_log_group" {
 ###############################################################################
 resource "aws_ecs_task_definition" "task_definition" {
   family                   = local.task_family
-  network_mode            = var.ecs_launch_type == "FARGATE" ? "awsvpc" : "bridge"
-  requires_compatibilities = [var.ecs_launch_type]
+  network_mode            = local.is_fargate ? "awsvpc" : "bridge"
+  requires_compatibilities = [local.requires_compatibility]
   
-  # Use provided role or null (will be created by AWS)
+  # CPU and Memory required for Fargate
+  cpu    = local.is_fargate ? "256" : null
+  memory = local.is_fargate ? "512" : null
+  
+  # Use provided role or created execution role
   task_role_arn      = var.initial_role != "" ? var.initial_role : null
-  execution_role_arn = var.initial_role != "" ? var.initial_role : null
+  execution_role_arn = var.initial_role != "" ? var.initial_role : try(aws_iam_role.task_execution_role[0].arn, null)
   
   container_definitions = local.container_definitions_json
   
   tags = merge(
     {
       Name          = local.task_family
-      ScheduledTask = var.task_name
+      ScheduledTask = var.name
       Cluster       = var.ecs_cluster_name
     },
     var.tags
@@ -41,6 +81,10 @@ resource "aws_ecs_task_definition" "task_definition" {
   lifecycle {
     ignore_changes = all
   }
+  
+  depends_on = [
+    aws_iam_role_policy_attachment.task_execution_policy
+  ]
 }
 
 ###############################################################################
@@ -48,14 +92,14 @@ resource "aws_ecs_task_definition" "task_definition" {
 ###############################################################################
 resource "aws_cloudwatch_event_rule" "scheduled_task" {
   name                = local.event_rule_name
-  description         = "Trigger ECS scheduled task ${var.task_name}"
+  description         = local.task_description
   schedule_expression = var.schedule_expression
   state               = var.state
   
   tags = merge(
     {
       Name          = local.event_rule_name
-      ScheduledTask = var.task_name
+      ScheduledTask = var.name
       Cluster       = var.ecs_cluster_name
     },
     var.tags
@@ -77,10 +121,22 @@ resource "aws_cloudwatch_event_target" "ecs_target" {
   # ECS task parameters
   ecs_target {
     task_definition_arn = aws_ecs_task_definition.task_definition.arn
-    launch_type        = var.ecs_launch_type
-    task_count         = var.task_count
-    platform_version   = var.ecs_launch_type == "FARGATE" ? var.platform_version : null
-    group              = var.group != "" ? var.group : null
+    
+    # Use capacity_provider_strategy if provided, otherwise use launch_type
+    launch_type      = length(var.capacity_provider_strategy) == 0 ? var.ecs_launch_type : null
+    task_count       = var.task_count
+    platform_version = local.is_fargate ? var.platform_version : null
+    group            = var.group != "" ? var.group : null
+    
+    # Capacity provider strategy (for Fargate Spot or custom strategies)
+    dynamic "capacity_provider_strategy" {
+      for_each = var.capacity_provider_strategy
+      content {
+        capacity_provider = capacity_provider_strategy.value.capacity_provider
+        weight            = capacity_provider_strategy.value.weight
+        base              = capacity_provider_strategy.value.base
+      }
+    }
     
     # Network configuration
     network_configuration {
@@ -89,21 +145,12 @@ resource "aws_cloudwatch_event_target" "ecs_target" {
       assign_public_ip = var.assign_public_ip
     }
     
-    # Placement constraints for EC2
-    dynamic "placement_constraint" {
-      for_each = var.ecs_launch_type == "EC2" ? var.placement_constraints : []
-      content {
-        type       = placement_constraint.value.type
-        expression = placement_constraint.value.expression
-      }
-    }
-    
     propagate_tags          = var.propagate_tags
     enable_ecs_managed_tags = var.enable_ecs_managed_tags
     
     tags = merge(
       {
-        ScheduledTask = var.task_name
+        ScheduledTask = var.name
         Cluster       = var.ecs_cluster_name
         EventRule     = local.event_rule_name
       },
@@ -147,7 +194,7 @@ resource "aws_iam_role" "eventbridge_role" {
   tags = merge(
     {
       Name          = local.eventbridge_role_name
-      ScheduledTask = var.task_name
+      ScheduledTask = var.name
       Cluster       = var.ecs_cluster_name
     },
     var.tags
@@ -172,34 +219,45 @@ resource "aws_iam_role_policy" "eventbridge_policy" {
           "ecs:RunTask"
         ]
         Resource = [
-          "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${local.task_family}:*"
+          "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${local.task_family}:*"
         ]
-        Condition = {
-          StringEquals = {
-            "ecs:cluster" = data.aws_ecs_cluster.ecs_cluster.arn
-          }
-        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:RunTask"
+        ]
+        Resource = [
+          data.aws_ecs_cluster.ecs_cluster.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:TagResource"
+        ]
+        Resource = [
+          "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task/${data.aws_ecs_cluster.ecs_cluster.cluster_name}/*"
+        ]
       },
       {
         Effect = "Allow"
         Action = [
           "iam:PassRole"
         ]
-        Resource = var.initial_role != "" ? [var.initial_role] : ["*"]
-        Condition = var.initial_role == "" ? {
-          StringEquals = {
+        Resource = var.initial_role != "" ? [var.initial_role] : [
+          try(aws_iam_role.task_execution_role[0].arn, "*")
+        ]
+        Condition = {
+          StringLike = {
             "iam:PassedToService" = "ecs-tasks.amazonaws.com"
           }
-        } : null
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "${aws_cloudwatch_log_group.ecs_log_group.arn}:*"
+        }
       }
     ]
   })
+  
+  depends_on = [
+    aws_iam_role.task_execution_role
+  ]
 }

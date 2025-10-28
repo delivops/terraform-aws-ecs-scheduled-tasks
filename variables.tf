@@ -3,9 +3,15 @@ variable "ecs_cluster_name" {
   type        = string
 }
 
-variable "task_name" {
+variable "name" {
   description = "Name of the scheduled task"
   type        = string
+}
+
+variable "description" {
+  description = "Description for the scheduled task. If not provided, a default description will be generated."
+  type        = string
+  default     = ""
 }
 
 variable "schedule_expression" {
@@ -33,12 +39,30 @@ variable "security_group_ids" {
 }
 
 variable "ecs_launch_type" {
-  description = "Launch type for the ECS task (FARGATE or EC2)"
+  description = "Launch type for the ECS task (FARGATE or EC2). Ignored if capacity_provider_strategy is set."
   type        = string
   default     = "FARGATE"
   validation {
     condition     = contains(["FARGATE", "EC2"], var.ecs_launch_type)
     error_message = "Valid values for ecs_launch_type are FARGATE or EC2."
+  }
+}
+
+variable "capacity_provider_strategy" {
+  description = "Capacity provider strategy for the ECS task. Use this for Fargate Spot. If set, overrides ecs_launch_type. Example: [{ capacity_provider = \"FARGATE_SPOT\", weight = 1, base = 0 }]"
+  type = list(object({
+    capacity_provider = string
+    weight            = optional(number)
+    base              = optional(number)
+  }))
+  default = []
+  validation {
+    condition = alltrue([
+      for strategy in var.capacity_provider_strategy :
+      contains(["FARGATE", "FARGATE_SPOT", "EC2"], strategy.capacity_provider) ||
+      can(regex("^[a-zA-Z0-9_-]+$", strategy.capacity_provider))
+    ])
+    error_message = "capacity_provider must be FARGATE, FARGATE_SPOT, or a valid custom capacity provider name."
   }
 }
 

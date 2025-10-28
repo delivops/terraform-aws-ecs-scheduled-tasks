@@ -1,14 +1,15 @@
 ################################################################################
 # Basic Scheduled Task Example
-# This example shows a simple daily scheduled task running on Fargate
+# This example shows simple scheduled tasks using EventBridge Rules
 ################################################################################
 
 module "daily_cleanup_task" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "daily-cleanup"
+  name                = "daily-cleanup"
   schedule_expression = "cron(0 2 * * ? *)" # Daily at 2 AM UTC
+  description         = "Daily cleanup task"
 
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
@@ -31,15 +32,15 @@ module "hourly_processor" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "hourly-data-processor"
+  name                = "hourly-data-processor"
   schedule_expression = "rate(1 hour)"
+  description         = "Hourly data processing"
 
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
   security_group_ids = var.security_group_ids
 
-  task_count = 2 # Run 2 instances
-
+  task_count         = 2 # Run 2 instances
   log_retention_days = 14
 
   tags = {
@@ -56,8 +57,9 @@ module "etl_task_with_input" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "etl-pipeline"
+  name                = "etl-pipeline"
   schedule_expression = "cron(0 6 * * MON-FRI *)" # Weekdays at 6 AM
+  description         = "ETL pipeline for data sync"
 
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
@@ -78,8 +80,7 @@ module "etl_task_with_input" {
   })
 
   retry_policy = {
-    maximum_retry_attempts       = 3
-    maximum_event_age_in_seconds = 7200 # 2 hours
+    maximum_retry_attempts = 3
   }
 
   tags = {
@@ -89,15 +90,16 @@ module "etl_task_with_input" {
 }
 
 ################################################################################
-# Every 5 Minutes Task with High Availability
+# High Frequency Monitor
 ################################################################################
 
 module "high_frequency_monitor" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "health-monitor"
+  name                = "health-monitor"
   schedule_expression = "rate(5 minutes)"
+  description         = "Health monitoring every 5 minutes"
 
   vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
@@ -106,8 +108,7 @@ module "high_frequency_monitor" {
   task_count = 1
 
   retry_policy = {
-    maximum_retry_attempts       = 5
-    maximum_event_age_in_seconds = 600 # 10 minutes
+    maximum_retry_attempts = 5
   }
 
   log_retention_days = 3
@@ -120,7 +121,6 @@ module "high_frequency_monitor" {
 
 # Expected resources created:
 # - 1 ECS Task Definition per module
-# - 1 EventBridge Rule per module  
-# - 1 EventBridge Target per module
+# - 1 EventBridge Schedule per module
 # - 1 CloudWatch Log Group per module
-# - 1 IAM Role + Policy per module (if not provided)
+# - 1 IAM Role + Policy (shared, if not provided)
