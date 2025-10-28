@@ -64,7 +64,7 @@ module "secure_scheduled_task" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "secure-data-processor"
+  name                = "secure-data-processor"
   schedule_expression = "cron(0 0 * * ? *)" # Daily at midnight
 
   vpc_id             = var.vpc_id
@@ -93,7 +93,7 @@ module "ec2_scheduled_task" {
   source = "../"
 
   ecs_cluster_name    = "ec2-cluster"
-  task_name           = "batch-processor"
+  name                = "batch-processor"
   schedule_expression = "cron(0 0 * * SUN *)" # Weekly on Sunday
 
   vpc_id             = var.vpc_id
@@ -132,7 +132,7 @@ module "disabled_scheduled_task" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "maintenance-task"
+  name                = "maintenance-task"
   schedule_expression = "rate(12 hours)"
 
   vpc_id             = var.vpc_id
@@ -199,7 +199,7 @@ module "task_with_custom_eventbridge_role" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "custom-role-task"
+  name                = "custom-role-task"
   schedule_expression = "rate(30 minutes)"
 
   vpc_id             = var.vpc_id
@@ -241,7 +241,7 @@ module "multiple_scheduled_tasks" {
   source   = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = each.key
+  name                = each.key
   schedule_expression = each.value.schedule
 
   vpc_id             = var.vpc_id
