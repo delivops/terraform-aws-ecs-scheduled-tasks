@@ -18,6 +18,11 @@ output "event_rule_arn" {
   value       = aws_cloudwatch_event_rule.scheduled_task.arn
 }
 
+output "event_target_id" {
+  description = "ID of the EventBridge target"
+  value       = aws_cloudwatch_event_target.ecs_target.target_id
+}
+
 output "cloudwatch_log_group_name" {
   description = "Name of the CloudWatch log group"
   value       = aws_cloudwatch_log_group.ecs_log_group.name
@@ -33,9 +38,9 @@ output "eventbridge_role_arn" {
   value       = local.use_custom_eventbridge_role ? var.role_arn : try(aws_iam_role.eventbridge_role[0].arn, "")
 }
 
-output "event_target_id" {
-  description = "ID of the EventBridge target"
-  value       = aws_cloudwatch_event_target.ecs_target.target_id
+output "task_execution_role_arn" {
+  description = "ARN of the ECS Task Execution role (if created)"
+  value       = var.initial_role != "" ? var.initial_role : try(aws_iam_role.task_execution_role[0].arn, "")
 }
 
 output "schedule_expression" {
@@ -46,12 +51,19 @@ output "schedule_expression" {
 output "task_details" {
   description = "Details about the scheduled task configuration"
   value = {
-    cluster_name     = var.ecs_cluster_name
-    task_name        = var.task_name
-    launch_type      = var.ecs_launch_type
-    task_count       = var.task_count
-    schedule         = var.schedule_expression
-    state            = var.state
-    retry_attempts   = var.retry_policy.maximum_retry_attempts
+    cluster_name              = var.ecs_cluster_name
+    task_name                 = var.name
+    event_rule_name           = local.event_rule_name
+    launch_type               = length(var.capacity_provider_strategy) == 0 ? var.ecs_launch_type : "capacity_provider"
+    capacity_provider_enabled = length(var.capacity_provider_strategy) > 0
+    task_count                = var.task_count
+    schedule                  = var.schedule_expression
+    state                     = var.state
+    retry_attempts            = var.retry_policy.maximum_retry_attempts
   }
+}
+
+output "capacity_provider_strategy" {
+  description = "Capacity provider strategy configuration (empty if using launch_type)"
+  value       = var.capacity_provider_strategy
 }

@@ -11,7 +11,7 @@ module "test_minimal" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-minimal"
+  name                = "test-minimal"
   schedule_expression = "rate(1 hour)"
   
   vpc_id             = "vpc-12345678"
@@ -28,7 +28,7 @@ module "test_full_config" {
 
   # Required parameters
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-full"
+  name                = "test-full"
   schedule_expression = "cron(0 12 * * ? *)"
   vpc_id             = "vpc-12345678"
   subnet_ids         = ["subnet-12345678", "subnet-87654321"]
@@ -44,8 +44,6 @@ module "test_full_config" {
   platform_version   = "LATEST"
   propagate_tags     = "TASK_DEFINITION"
   enable_ecs_managed_tags = true
-  group              = "test-group"
-
   retry_policy = {
     maximum_retry_attempts       = 3
     maximum_event_age_in_seconds = 7200
@@ -75,7 +73,7 @@ module "test_ec2_launch" {
   source = "../"
 
   ecs_cluster_name    = "ec2-cluster"
-  task_name           = "test-ec2"
+  name                = "test-ec2"
   schedule_expression = "rate(30 minutes)"
   
   vpc_id             = "vpc-12345678"
@@ -103,7 +101,7 @@ module "test_rate_expression" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-rate"
+  name                = "test-rate"
   schedule_expression = "rate(5 minutes)"
   
   vpc_id             = "vpc-12345678"
@@ -115,7 +113,7 @@ module "test_cron_expression" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"  
-  task_name           = "test-cron"
+  name                = "test-cron"
   schedule_expression = "cron(0 12 * * ? *)"
   
   vpc_id             = "vpc-12345678"
@@ -136,7 +134,7 @@ module "test_task_counts" {
   source   = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-count-${each.value}"
+  name                = "test-count-${each.value}"
   schedule_expression = "rate(1 hour)"
   
   vpc_id             = "vpc-12345678"
@@ -154,7 +152,7 @@ module "test_enabled_task" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-enabled"
+  name                = "test-enabled"
   schedule_expression = "rate(1 hour)"
   state               = "ENABLED"
   
@@ -167,7 +165,7 @@ module "test_disabled_task" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-disabled"
+  name                = "test-disabled"
   schedule_expression = "rate(1 hour)"
   state               = "DISABLED"
   
@@ -214,7 +212,7 @@ module "test_custom_iam" {
   source = "../"
 
   ecs_cluster_name    = "test-cluster"
-  task_name           = "test-custom-iam"
+  name                = "test-custom-iam"
   schedule_expression = "rate(1 hour)"
   
   vpc_id             = "vpc-12345678"
