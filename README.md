@@ -218,7 +218,9 @@ No modules.
 | [aws_cloudwatch_log_group.ecs_log_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_ecs_task_definition.task_definition](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition) | resource |
 | [aws_iam_role.eventbridge_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.task_execution_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.eventbridge_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy_attachment.task_execution_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_ecs_cluster.ecs_cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecs_cluster) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
@@ -228,28 +230,43 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_assign_public_ip"></a> [assign\_public\_ip](#input\_assign\_public\_ip) | Assign public IP to ECS tasks (Fargate only) | `bool` | `false` | no |
+| <a name="input_capacity_provider_strategy"></a> [capacity\_provider\_strategy](#input\_capacity\_provider\_strategy) | Capacity provider strategy for the ECS task. Use this for Fargate Spot. If set, overrides ecs\_launch\_type. Example: [{ capacity\_provider = "FARGATE\_SPOT", weight = 1, base = 0 }] | <pre>list(object({<br/>    capacity_provider = string<br/>    weight            = optional(number)<br/>    base              = optional(number)<br/>  }))</pre> | `[]` | no |
+| <a name="input_description"></a> [description](#input\_description) | Description for the scheduled task. If not provided, a default description will be generated. | `string` | `""` | no |
 | <a name="input_ecs_cluster_name"></a> [ecs\_cluster\_name](#input\_ecs\_cluster\_name) | Name of the ECS cluster | `string` | n/a | yes |
-| <a name="input_ecs_launch_type"></a> [ecs\_launch\_type](#input\_ecs\_launch\_type) | Launch type for the ECS task (FARGATE or EC2) | `string` | `"FARGATE"` | no |
+| <a name="input_ecs_launch_type"></a> [ecs\_launch\_type](#input\_ecs\_launch\_type) | Launch type for the ECS task (FARGATE or EC2). Ignored if capacity\_provider\_strategy is set. | `string` | `"FARGATE"` | no |
+| <a name="input_enable_ecs_managed_tags"></a> [enable\_ecs\_managed\_tags](#input\_enable\_ecs\_managed\_tags) | Enable ECS managed tags for the tasks | `bool` | `true` | no |
 | <a name="input_event_input"></a> [event\_input](#input\_event\_input) | JSON input to pass to the scheduled task | `string` | `""` | no |
+| <a name="input_group"></a> [group](#input\_group) | Group name for the scheduled tasks | `string` | `""` | no |
 | <a name="input_initial_role"></a> [initial\_role](#input\_initial\_role) | ARN of the IAM role to use for both task role and execution role | `string` | `""` | no |
 | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Number of days to retain logs | `number` | `7` | no |
-| <a name="input_retry_policy"></a> [retry\_policy](#input\_retry\_policy) | Retry policy configuration for the EventBridge target | <pre>object({<br>    maximum_retry_attempts       = optional(number, 2)<br>    maximum_event_age_in_seconds = optional(number, 3600)<br>  })</pre> | `{}` | no |
+| <a name="input_name"></a> [name](#input\_name) | Name of the scheduled task | `string` | n/a | yes |
+| <a name="input_placement_constraints"></a> [placement\_constraints](#input\_placement\_constraints) | Placement constraints for EC2 launch type | <pre>list(object({<br/>    type       = string<br/>    expression = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_platform_version"></a> [platform\_version](#input\_platform\_version) | Platform version for Fargate tasks | `string` | `"LATEST"` | no |
+| <a name="input_propagate_tags"></a> [propagate\_tags](#input\_propagate\_tags) | Propagate tags from the task definition or the service to the tasks | `string` | `"TASK_DEFINITION"` | no |
+| <a name="input_retry_policy"></a> [retry\_policy](#input\_retry\_policy) | Retry policy configuration for the EventBridge target | <pre>object({<br/>    maximum_retry_attempts       = optional(number, 2)<br/>    maximum_event_age_in_seconds = optional(number, 3600)<br/>  })</pre> | `{}` | no |
+| <a name="input_role_arn"></a> [role\_arn](#input\_role\_arn) | ARN of the IAM role that EventBridge assumes to run the task | `string` | `""` | no |
 | <a name="input_schedule_expression"></a> [schedule\_expression](#input\_schedule\_expression) | Schedule expression for the task (cron or rate) | `string` | n/a | yes |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Security group IDs for the ECS tasks | `list(string)` | n/a | yes |
 | <a name="input_state"></a> [state](#input\_state) | State of the EventBridge rule (ENABLED or DISABLED) | `string` | `"ENABLED"` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs for the ECS tasks | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | A map of tags to add to all resources | `map(string)` | `{}` | no |
 | <a name="input_task_count"></a> [task\_count](#input\_task\_count) | Number of tasks to run per scheduled execution | `number` | `1` | no |
-| <a name="input_task_name"></a> [task\_name](#input\_task\_name) | Name of the scheduled task | `string` | n/a | yes |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC | `string` | n/a | yes |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
+| <a name="output_capacity_provider_strategy"></a> [capacity\_provider\_strategy](#output\_capacity\_provider\_strategy) | Capacity provider strategy configuration (empty if using launch\_type) |
+| <a name="output_cloudwatch_log_group_arn"></a> [cloudwatch\_log\_group\_arn](#output\_cloudwatch\_log\_group\_arn) | ARN of the CloudWatch log group |
 | <a name="output_cloudwatch_log_group_name"></a> [cloudwatch\_log\_group\_name](#output\_cloudwatch\_log\_group\_name) | Name of the CloudWatch log group |
 | <a name="output_event_rule_arn"></a> [event\_rule\_arn](#output\_event\_rule\_arn) | ARN of the EventBridge rule |
 | <a name="output_event_rule_name"></a> [event\_rule\_name](#output\_event\_rule\_name) | Name of the EventBridge rule |
+| <a name="output_event_target_id"></a> [event\_target\_id](#output\_event\_target\_id) | ID of the EventBridge target |
+| <a name="output_eventbridge_role_arn"></a> [eventbridge\_role\_arn](#output\_eventbridge\_role\_arn) | ARN of the EventBridge IAM role (if created) |
+| <a name="output_schedule_expression"></a> [schedule\_expression](#output\_schedule\_expression) | Schedule expression for the task |
 | <a name="output_task_definition_arn"></a> [task\_definition\_arn](#output\_task\_definition\_arn) | ARN of the ECS task definition |
 | <a name="output_task_definition_family"></a> [task\_definition\_family](#output\_task\_definition\_family) | Family of the ECS task definition |
+| <a name="output_task_details"></a> [task\_details](#output\_task\_details) | Details about the scheduled task configuration |
+| <a name="output_task_execution_role_arn"></a> [task\_execution\_role\_arn](#output\_task\_execution\_role\_arn) | ARN of the ECS Task Execution role (if created) |
 <!-- END_TF_DOCS -->
