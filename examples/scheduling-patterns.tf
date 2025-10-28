@@ -11,7 +11,7 @@ module "business_hours_task" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "business-hours-processor"
+  name                = "business-hours-processor"
   schedule_expression = "cron(0 9-17 ? * MON-FRI *)" # Every hour from 9 AM to 5 PM on weekdays
 
   vpc_id             = var.vpc_id
@@ -37,7 +37,7 @@ module "end_of_month_task" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "month-end-reconciliation"
+  name                = "month-end-reconciliation"
   schedule_expression = "cron(0 23 L * ? *)" # Last day of month at 11 PM
 
   vpc_id             = var.vpc_id
@@ -74,7 +74,7 @@ module "quarterly_reports" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "quarterly-report-generator"
+  name                = "quarterly-report-generator"
   # First Monday of Jan, Apr, Jul, Oct
   schedule_expression = "cron(0 6 ? 1,4,7,10 MON#1 *)" 
 
@@ -108,7 +108,7 @@ module "peak_hours_processor" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "peak-traffic-handler"
+  name                = "peak-traffic-handler"
   schedule_expression = "cron(*/10 8-20 * * ? *)" # Every 10 minutes during peak hours
 
   vpc_id             = var.vpc_id
@@ -133,7 +133,7 @@ module "off_peak_processor" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "off-peak-handler"
+  name                = "off-peak-handler"
   schedule_expression = "cron(0 20-23,0-8 * * ? *)" # Every hour during off-peak
 
   vpc_id             = var.vpc_id
@@ -161,7 +161,7 @@ module "weekend_maintenance" {
   source = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "weekend-maintenance"
+  name                = "weekend-maintenance"
   schedule_expression = "cron(0 2-4 ? * SAT *)" # Every hour from 2-4 AM on Saturday
 
   vpc_id             = var.vpc_id
@@ -223,7 +223,7 @@ module "data_sync_tasks" {
   source   = "../"
 
   ecs_cluster_name    = var.cluster_name
-  task_name           = "data-sync-${each.key}"
+  name                = "data-sync-${each.key}"
   schedule_expression = each.value.schedule
 
   vpc_id             = var.vpc_id
@@ -253,7 +253,7 @@ module "conditional_scheduled_task" {
   source = "../"
 
   ecs_cluster_name = var.cluster_name
-  task_name        = "conditional-processor"
+  name             = "conditional-processor"
   
   # Different schedules for different environments
   schedule_expression = var.environment == "production" ? "rate(5 minutes)" : var.environment == "staging" ? "rate(30 minutes)" : "rate(1 hour)"
