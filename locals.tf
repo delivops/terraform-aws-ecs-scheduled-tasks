@@ -20,7 +20,7 @@ locals {
   ) : var.ecs_launch_type
   
   # Task definition family name
-  task_family = "${data.aws_ecs_cluster.ecs_cluster.cluster_name}_${var.name}_scheduled"
+  task_family = "${data.aws_ecs_cluster.ecs_cluster.cluster_name}_${var.name}"
   
   # CloudWatch log group name
   log_group_name = "/ecs/scheduled/${data.aws_ecs_cluster.ecs_cluster.cluster_name}/${var.name}"
