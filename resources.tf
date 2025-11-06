@@ -168,6 +168,12 @@ resource "aws_cloudwatch_event_target" "ecs_target" {
     aws_ecs_task_definition.task_definition,
     aws_iam_role_policy.eventbridge_policy
   ]
+
+  lifecycle {
+    ignore_changes = [
+      ecs_target[0].task_definition_arn
+    ]
+  } 
 }
 
 ###############################################################################
