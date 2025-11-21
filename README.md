@@ -6,7 +6,9 @@ This Terraform module deploys ECS scheduled tasks on AWS using **EventBridge Rul
 
 ## Features
 
+- ✅ **Two trigger modes**: EventBridge Rules or Step Functions
 - ✅ Creates ECS scheduled tasks with **EventBridge Rules**
+- ✅ **Step Functions continuous execution** with guaranteed intervals
 - ✅ Support for both cron and rate expressions
 - ✅ **Fargate Spot support** for cost savings (up to 70% cheaper)
 - ✅ **Flexible capacity provider strategies** (Spot, Regular, or Mixed)
@@ -177,6 +179,99 @@ module "mixed_capacity_task" {
 - `rate(1 hour)` - Every hour
 - `rate(7 days)` - Every 7 days
 
+## Step Functions Continuous Execution
+
+For workloads that need **guaranteed intervals** between task starts, use the Step Functions trigger mode. This provides a perfect metronome that ensures tasks start at regular intervals regardless of task duration.
+
+### Step Functions vs EventBridge
+
+| Feature | EventBridge Rules | Step Functions Loop |
+|---------|------------------|---------------------|
+| **Scheduling** | Cron or rate expression | Fixed wait duration between starts |
+| **Interval Guarantee** | Based on schedule time | Guaranteed N minutes between starts |
+| **Overlapping Tasks** | Possible if task runs long | Never - waits for task completion |
+| **Task Duration Impact** | None (schedule is independent) | Next start waits for completion |
+| **Use Latest Code** | Yes | Yes (always uses latest task definition) |
+| **Best For** | Time-based schedules | Regular interval processing |
+| **Iterations** | Infinite | Configurable (infinite or limited) |
+
+### Step Functions Example
+
+```hcl
+module "continuous_processor" {
+  source = "delivops/ecs-scheduled-task/aws"
+  
+  ecs_cluster_name = "my-cluster"
+  name             = "hourly-processor"
+  description      = "Processes data every hour using Step Functions"
+  
+  # Use Step Functions instead of EventBridge
+  trigger_type = "stepfunctions"
+  
+  # Configure the wait duration between task starts
+  step_functions_config = {
+    wait_duration_minutes = 60  # Wait 60 minutes between task starts
+  }
+  
+  # No schedule_expression needed for Step Functions
+  
+  vpc_id             = var.vpc_id
+  subnet_ids         = var.subnet_ids
+  security_group_ids = var.security_group_ids
+  
+  ecs_launch_type = "FARGATE"
+}
+```
+
+### How It Works
+
+**Parallel State Design:**
+```
+Parallel State:
+├── Branch 1: Run ECS Task (your actual work)
+└── Branch 2: Wait N minutes
+→ When BOTH complete → Loop back to start
+```
+
+**Execution Timeline Example (60-minute interval):**
+- **Iteration 1**: Task runs 45 min | Wait 60 min → Next starts at 60 min
+- **Iteration 2**: Task runs 58 min | Wait 60 min → Next starts at 60 min  
+- **Iteration 3**: Task runs 35 min | Wait 60 min → Next starts at 60 min
+- **Iteration 4**: Task runs 62 min | Wait 60 min → Next starts at 62 min
+
+**Key Guarantees:**
+- ✅ Exactly N minutes between starts (when task < N minutes)
+- ✅ Never overlapping - next task only starts after both branches complete
+- ✅ Always uses latest task definition on each iteration
+- ✅ Perfect for hourly/regular processing jobs
+
+### Starting the Step Functions Execution
+
+The Step Functions state machine needs to be started manually or programmatically:
+
+**Option 1: AWS CLI**
+```bash
+aws stepfunctions start-execution \
+  --state-machine-arn <state_machine_arn> \
+  --input '{"loopCount": 0}'
+```
+
+**Option 2: AWS Console**
+Navigate to Step Functions console and click "Start execution"
+
+**Option 3: Terraform**
+```hcl
+resource "aws_sfn_execution" "start_processor" {
+  state_machine_arn = module.continuous_processor.state_machine_arn
+  input = jsonencode({
+    loopCount = 0
+  })
+}
+```
+
+**Option 4: Lambda or Another Service**
+Create a Lambda function or use another service to start the execution programmatically.
+
 ## Notes
 
 - The module creates an initial placeholder task definition that will be overridden
@@ -204,6 +299,7 @@ This module is released under the MIT License.
 | Name | Version |
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -216,11 +312,16 @@ No modules.
 | [aws_cloudwatch_event_rule.scheduled_task](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
 | [aws_cloudwatch_event_target.ecs_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_cloudwatch_log_group.ecs_log_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_cloudwatch_log_group.sfn_log_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_ecs_task_definition.task_definition](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition) | resource |
 | [aws_iam_role.eventbridge_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.sfn_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role.task_execution_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.eventbridge_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy.sfn_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy_attachment.task_execution_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_sfn_state_machine.ecs_task_loop](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sfn_state_machine) | resource |
+| [terraform_data.sfn_execution_manager](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_ecs_cluster.ecs_cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecs_cluster) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
@@ -245,12 +346,14 @@ No modules.
 | <a name="input_propagate_tags"></a> [propagate\_tags](#input\_propagate\_tags) | Propagate tags from the task definition or the service to the tasks | `string` | `"TASK_DEFINITION"` | no |
 | <a name="input_retry_policy"></a> [retry\_policy](#input\_retry\_policy) | Retry policy configuration for the EventBridge target | <pre>object({<br/>    maximum_retry_attempts       = optional(number, 2)<br/>    maximum_event_age_in_seconds = optional(number, 3600)<br/>  })</pre> | `{}` | no |
 | <a name="input_role_arn"></a> [role\_arn](#input\_role\_arn) | ARN of the IAM role that EventBridge assumes to run the task | `string` | `""` | no |
-| <a name="input_schedule_expression"></a> [schedule\_expression](#input\_schedule\_expression) | Schedule expression for the task (cron or rate) | `string` | n/a | yes |
+| <a name="input_schedule_expression"></a> [schedule\_expression](#input\_schedule\_expression) | Schedule expression for the task (cron or rate). Required when trigger\_type is 'eventbridge', ignored when trigger\_type is 'stepfunctions' | `string` | `""` | no |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Security group IDs for the ECS tasks | `list(string)` | n/a | yes |
 | <a name="input_state"></a> [state](#input\_state) | State of the EventBridge rule (ENABLED or DISABLED) | `string` | `"ENABLED"` | no |
+| <a name="input_step_functions_config"></a> [step\_functions\_config](#input\_step\_functions\_config) | Configuration for Step Functions trigger. Only used when trigger\_type is 'stepfunctions' | <pre>object({<br/>    wait_duration_minutes = number<br/>  })</pre> | <pre>{<br/>  "wait_duration_minutes": 60<br/>}</pre> | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs for the ECS tasks | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | A map of tags to add to all resources | `map(string)` | `{}` | no |
 | <a name="input_task_count"></a> [task\_count](#input\_task\_count) | Number of tasks to run per scheduled execution | `number` | `1` | no |
+| <a name="input_trigger_type"></a> [trigger\_type](#input\_trigger\_type) | Type of trigger for the ECS task: 'eventbridge' for traditional scheduled tasks or 'stepfunctions' for continuous looping with guaranteed intervals | `string` | `"eventbridge"` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC | `string` | n/a | yes |
 
 ## Outputs
@@ -260,13 +363,18 @@ No modules.
 | <a name="output_capacity_provider_strategy"></a> [capacity\_provider\_strategy](#output\_capacity\_provider\_strategy) | Capacity provider strategy configuration (empty if using launch\_type) |
 | <a name="output_cloudwatch_log_group_arn"></a> [cloudwatch\_log\_group\_arn](#output\_cloudwatch\_log\_group\_arn) | ARN of the CloudWatch log group |
 | <a name="output_cloudwatch_log_group_name"></a> [cloudwatch\_log\_group\_name](#output\_cloudwatch\_log\_group\_name) | Name of the CloudWatch log group |
-| <a name="output_event_rule_arn"></a> [event\_rule\_arn](#output\_event\_rule\_arn) | ARN of the EventBridge rule |
-| <a name="output_event_rule_name"></a> [event\_rule\_name](#output\_event\_rule\_name) | Name of the EventBridge rule |
-| <a name="output_event_target_id"></a> [event\_target\_id](#output\_event\_target\_id) | ID of the EventBridge target |
-| <a name="output_eventbridge_role_arn"></a> [eventbridge\_role\_arn](#output\_eventbridge\_role\_arn) | ARN of the EventBridge IAM role (if created) |
-| <a name="output_schedule_expression"></a> [schedule\_expression](#output\_schedule\_expression) | Schedule expression for the task |
+| <a name="output_event_rule_arn"></a> [event\_rule\_arn](#output\_event\_rule\_arn) | ARN of the EventBridge rule (only for eventbridge trigger\_type) |
+| <a name="output_event_rule_name"></a> [event\_rule\_name](#output\_event\_rule\_name) | Name of the EventBridge rule (only for eventbridge trigger\_type) |
+| <a name="output_event_target_id"></a> [event\_target\_id](#output\_event\_target\_id) | ID of the EventBridge target (only for eventbridge trigger\_type) |
+| <a name="output_eventbridge_role_arn"></a> [eventbridge\_role\_arn](#output\_eventbridge\_role\_arn) | ARN of the EventBridge IAM role (only for eventbridge trigger\_type) |
+| <a name="output_schedule_expression"></a> [schedule\_expression](#output\_schedule\_expression) | Schedule expression for the task (only for eventbridge trigger\_type) |
+| <a name="output_sfn_log_group_name"></a> [sfn\_log\_group\_name](#output\_sfn\_log\_group\_name) | Name of the Step Functions CloudWatch log group (only for stepfunctions trigger\_type) |
+| <a name="output_sfn_role_arn"></a> [sfn\_role\_arn](#output\_sfn\_role\_arn) | ARN of the Step Functions IAM role (only for stepfunctions trigger\_type) |
+| <a name="output_state_machine_arn"></a> [state\_machine\_arn](#output\_state\_machine\_arn) | ARN of the Step Functions state machine (only for stepfunctions trigger\_type) |
+| <a name="output_state_machine_name"></a> [state\_machine\_name](#output\_state\_machine\_name) | Name of the Step Functions state machine (only for stepfunctions trigger\_type) |
 | <a name="output_task_definition_arn"></a> [task\_definition\_arn](#output\_task\_definition\_arn) | ARN of the ECS task definition |
 | <a name="output_task_definition_family"></a> [task\_definition\_family](#output\_task\_definition\_family) | Family of the ECS task definition |
 | <a name="output_task_details"></a> [task\_details](#output\_task\_details) | Details about the scheduled task configuration |
 | <a name="output_task_execution_role_arn"></a> [task\_execution\_role\_arn](#output\_task\_execution\_role\_arn) | ARN of the ECS Task Execution role (if created) |
+| <a name="output_trigger_type"></a> [trigger\_type](#output\_trigger\_type) | Type of trigger configured for this task |
 <!-- END_TF_DOCS -->

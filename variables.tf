@@ -15,10 +15,11 @@ variable "description" {
 }
 
 variable "schedule_expression" {
-  description = "Schedule expression for the task (cron or rate)"
+  description = "Schedule expression for the task (cron or rate). Required when trigger_type is 'eventbridge', ignored when trigger_type is 'stepfunctions'"
   type        = string
+  default     = ""
   validation {
-    condition = can(regex("^(rate\\(|cron\\()", var.schedule_expression))
+    condition = var.schedule_expression == "" || can(regex("^(rate\\(|cron\\()", var.schedule_expression))
     error_message = "Schedule expression must start with either 'rate(' or 'cron('."
   }
 }
@@ -174,4 +175,30 @@ variable "role_arn" {
   description = "ARN of the IAM role that EventBridge assumes to run the task"
   type        = string
   default     = ""
+}
+
+variable "trigger_type" {
+  description = "Type of trigger for the ECS task: 'eventbridge' for traditional scheduled tasks or 'stepfunctions' for continuous looping with guaranteed intervals"
+  type        = string
+  default     = "eventbridge"
+  
+  validation {
+    condition     = contains(["eventbridge", "stepfunctions"], var.trigger_type)
+    error_message = "trigger_type must be either 'eventbridge' or 'stepfunctions'."
+  }
+}
+
+variable "step_functions_config" {
+  description = "Configuration for Step Functions trigger. Only used when trigger_type is 'stepfunctions'"
+  type = object({
+    wait_duration_minutes = number
+  })
+  default = {
+    wait_duration_minutes = 60
+  }
+  
+  validation {
+    condition     = var.step_functions_config.wait_duration_minutes > 0 && var.step_functions_config.wait_duration_minutes <= 525600
+    error_message = "wait_duration_minutes must be between 1 and 525600 (1 year)."
+  }
 }

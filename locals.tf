@@ -52,5 +52,15 @@ locals {
   
   # Use provided role or create new one
   use_custom_eventbridge_role = var.role_arn != ""
-  eventbridge_execution_role_arn = local.use_custom_eventbridge_role ? var.role_arn : aws_iam_role.eventbridge_role[0].arn
+  eventbridge_execution_role_arn = local.use_custom_eventbridge_role ? var.role_arn : (var.trigger_type == "eventbridge" ? aws_iam_role.eventbridge_role[0].arn : null)
+  
+  # Step Functions specific locals
+  use_step_functions = var.trigger_type == "stepfunctions"
+  use_eventbridge = var.trigger_type == "eventbridge"
+  
+  # Step Functions state machine name
+  state_machine_name = "${var.ecs_cluster_name}-${var.name}-sfn"
+  
+  # Step Functions IAM role name
+  sfn_role_name = "${var.ecs_cluster_name}-${var.name}-sfn-role"
 }
