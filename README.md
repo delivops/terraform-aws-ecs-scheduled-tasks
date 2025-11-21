@@ -6,7 +6,9 @@ This Terraform module deploys ECS scheduled tasks on AWS using **EventBridge Rul
 
 ## Features
 
+- ✅ **Two trigger modes**: EventBridge Rules or Step Functions
 - ✅ Creates ECS scheduled tasks with **EventBridge Rules**
+- ✅ **Step Functions continuous execution** with guaranteed intervals
 - ✅ Support for both cron and rate expressions
 - ✅ **Fargate Spot support** for cost savings (up to 70% cheaper)
 - ✅ **Flexible capacity provider strategies** (Spot, Regular, or Mixed)
@@ -176,6 +178,99 @@ module "mixed_capacity_task" {
 - `rate(5 minutes)` - Every 5 minutes
 - `rate(1 hour)` - Every hour
 - `rate(7 days)` - Every 7 days
+
+## Step Functions Continuous Execution
+
+For workloads that need **guaranteed intervals** between task starts, use the Step Functions trigger mode. This provides a perfect metronome that ensures tasks start at regular intervals regardless of task duration.
+
+### Step Functions vs EventBridge
+
+| Feature | EventBridge Rules | Step Functions Loop |
+|---------|------------------|---------------------|
+| **Scheduling** | Cron or rate expression | Fixed wait duration between starts |
+| **Interval Guarantee** | Based on schedule time | Guaranteed N minutes between starts |
+| **Overlapping Tasks** | Possible if task runs long | Never - waits for task completion |
+| **Task Duration Impact** | None (schedule is independent) | Next start waits for completion |
+| **Use Latest Code** | Yes | Yes (always uses latest task definition) |
+| **Best For** | Time-based schedules | Regular interval processing |
+| **Iterations** | Infinite | Configurable (infinite or limited) |
+
+### Step Functions Example
+
+```hcl
+module "continuous_processor" {
+  source = "delivops/ecs-scheduled-task/aws"
+  
+  ecs_cluster_name = "my-cluster"
+  name             = "hourly-processor"
+  description      = "Processes data every hour using Step Functions"
+  
+  # Use Step Functions instead of EventBridge
+  trigger_type = "stepfunctions"
+  
+  # Configure the wait duration between task starts
+  step_functions_config = {
+    wait_duration_minutes = 60  # Wait 60 minutes between task starts
+  }
+  
+  # No schedule_expression needed for Step Functions
+  
+  vpc_id             = var.vpc_id
+  subnet_ids         = var.subnet_ids
+  security_group_ids = var.security_group_ids
+  
+  ecs_launch_type = "FARGATE"
+}
+```
+
+### How It Works
+
+**Parallel State Design:**
+```
+Parallel State:
+├── Branch 1: Run ECS Task (your actual work)
+└── Branch 2: Wait N minutes
+→ When BOTH complete → Loop back to start
+```
+
+**Execution Timeline Example (60-minute interval):**
+- **Iteration 1**: Task runs 45 min | Wait 60 min → Next starts at 60 min
+- **Iteration 2**: Task runs 58 min | Wait 60 min → Next starts at 60 min  
+- **Iteration 3**: Task runs 35 min | Wait 60 min → Next starts at 60 min
+- **Iteration 4**: Task runs 62 min | Wait 60 min → Next starts at 62 min
+
+**Key Guarantees:**
+- ✅ Exactly N minutes between starts (when task < N minutes)
+- ✅ Never overlapping - next task only starts after both branches complete
+- ✅ Always uses latest task definition on each iteration
+- ✅ Perfect for hourly/regular processing jobs
+
+### Starting the Step Functions Execution
+
+The Step Functions state machine needs to be started manually or programmatically:
+
+**Option 1: AWS CLI**
+```bash
+aws stepfunctions start-execution \
+  --state-machine-arn <state_machine_arn> \
+  --input '{"loopCount": 0}'
+```
+
+**Option 2: AWS Console**
+Navigate to Step Functions console and click "Start execution"
+
+**Option 3: Terraform**
+```hcl
+resource "aws_sfn_execution" "start_processor" {
+  state_machine_arn = module.continuous_processor.state_machine_arn
+  input = jsonencode({
+    loopCount = 0
+  })
+}
+```
+
+**Option 4: Lambda or Another Service**
+Create a Lambda function or use another service to start the execution programmatically.
 
 ## Notes
 

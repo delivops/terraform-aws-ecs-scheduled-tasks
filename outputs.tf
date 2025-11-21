@@ -9,18 +9,18 @@ output "task_definition_family" {
 }
 
 output "event_rule_name" {
-  description = "Name of the EventBridge rule"
-  value       = aws_cloudwatch_event_rule.scheduled_task.name
+  description = "Name of the EventBridge rule (only for eventbridge trigger_type)"
+  value       = local.use_eventbridge ? aws_cloudwatch_event_rule.scheduled_task[0].name : null
 }
 
 output "event_rule_arn" {
-  description = "ARN of the EventBridge rule"
-  value       = aws_cloudwatch_event_rule.scheduled_task.arn
+  description = "ARN of the EventBridge rule (only for eventbridge trigger_type)"
+  value       = local.use_eventbridge ? aws_cloudwatch_event_rule.scheduled_task[0].arn : null
 }
 
 output "event_target_id" {
-  description = "ID of the EventBridge target"
-  value       = aws_cloudwatch_event_target.ecs_target.target_id
+  description = "ID of the EventBridge target (only for eventbridge trigger_type)"
+  value       = local.use_eventbridge ? aws_cloudwatch_event_target.ecs_target[0].target_id : null
 }
 
 output "cloudwatch_log_group_name" {
@@ -34,8 +34,8 @@ output "cloudwatch_log_group_arn" {
 }
 
 output "eventbridge_role_arn" {
-  description = "ARN of the EventBridge IAM role (if created)"
-  value       = local.use_custom_eventbridge_role ? var.role_arn : try(aws_iam_role.eventbridge_role[0].arn, "")
+  description = "ARN of the EventBridge IAM role (only for eventbridge trigger_type)"
+  value       = local.use_eventbridge ? (local.use_custom_eventbridge_role ? var.role_arn : try(aws_iam_role.eventbridge_role[0].arn, "")) : null
 }
 
 output "task_execution_role_arn" {
@@ -44,8 +44,8 @@ output "task_execution_role_arn" {
 }
 
 output "schedule_expression" {
-  description = "Schedule expression for the task"
-  value       = var.schedule_expression
+  description = "Schedule expression for the task (only for eventbridge trigger_type)"
+  value       = local.use_eventbridge ? var.schedule_expression : null
 }
 
 output "task_details" {
@@ -66,4 +66,29 @@ output "task_details" {
 output "capacity_provider_strategy" {
   description = "Capacity provider strategy configuration (empty if using launch_type)"
   value       = var.capacity_provider_strategy
+}
+
+output "state_machine_arn" {
+  description = "ARN of the Step Functions state machine (only for stepfunctions trigger_type)"
+  value       = local.use_step_functions ? aws_sfn_state_machine.ecs_task_loop[0].arn : null
+}
+
+output "state_machine_name" {
+  description = "Name of the Step Functions state machine (only for stepfunctions trigger_type)"
+  value       = local.use_step_functions ? aws_sfn_state_machine.ecs_task_loop[0].name : null
+}
+
+output "sfn_role_arn" {
+  description = "ARN of the Step Functions IAM role (only for stepfunctions trigger_type)"
+  value       = local.use_step_functions ? aws_iam_role.sfn_role[0].arn : null
+}
+
+output "sfn_log_group_name" {
+  description = "Name of the Step Functions CloudWatch log group (only for stepfunctions trigger_type)"
+  value       = local.use_step_functions ? aws_cloudwatch_log_group.sfn_log_group[0].name : null
+}
+
+output "trigger_type" {
+  description = "Type of trigger configured for this task"
+  value       = var.trigger_type
 }
