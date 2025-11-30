@@ -26,7 +26,7 @@ locals {
   log_group_name = "/ecs/${data.aws_ecs_cluster.ecs_cluster.cluster_name}/${var.name}"
   
   # EventBridge IAM role name
-  eventbridge_role_name = "${var.ecs_cluster_name}-${var.name}-eventbridge-role"
+  eventbridge_role_name = "${substr(var.ecs_cluster_name, 0, 20)}-${substr(var.name, 0, 26)}-eventbridge-role"
   
   # Container definition for the initial task
   # This is a placeholder task definition that will be ignored due to lifecycle ignore_changes
